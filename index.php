@@ -96,6 +96,7 @@ input,select,textarea{font-family:var(--font-body);outline:none}
 /* MODAL OVERLAY                                */
 /* ============================================ */
 .modal-overlay{position:fixed;inset:0;z-index:9000;background:rgba(0,0,0,0.75);display:flex;align-items:center;justify-content:center;padding:20px;opacity:0;pointer-events:none;transition:opacity 0.25s ease;backdrop-filter:blur(4px)}
+#confirm-modal{z-index:9100}
 .modal-overlay.active{opacity:1;pointer-events:auto}
 .modal-overlay.active .modal-box{animation:modalIn 0.3s ease both}
 .modal-box{background:var(--dark-gray);border:1px solid var(--light-gray);border-radius:8px;width:100%;max-width:600px;max-height:90vh;overflow-y:auto;position:relative}
@@ -158,6 +159,8 @@ input,select,textarea{font-family:var(--font-body);outline:none}
 .btn-primary:hover{background:var(--orange-dark);box-shadow:0 0 20px var(--orange-glow)}
 .btn-secondary{background:var(--mid-gray);color:var(--silver);border:1px solid var(--light-gray)}
 .btn-secondary:hover{background:var(--light-gray);color:var(--white)}
+.btn-export{background:rgba(33,115,70,0.18);color:#8de0a9;border:1px solid rgba(33,115,70,0.56)}
+.btn-export:hover{background:#217346;color:var(--white);border-color:#2f9d61;box-shadow:0 0 20px rgba(33,115,70,0.24)}
 .btn-danger{background:rgba(220,53,69,0.15);color:#f07080;border:1px solid rgba(220,53,69,0.3)}
 .btn-danger:hover{background:rgba(220,53,69,0.3)}
 .btn-ghost{background:transparent;color:var(--silver);border:1px solid var(--light-gray)}
@@ -178,7 +181,10 @@ input,select,textarea{font-family:var(--font-body);outline:none}
 .header-divider,.header-page-title{display:none}
 .header-right{display:flex;align-items:center;gap:28px}
 .header-user{display:flex;align-items:center;gap:13px}
-.header-avatar{width:40px;height:40px;border-radius:50%;background:transparent;border:2px solid var(--orange);display:flex;align-items:center;justify-content:center;font-family:var(--font-heading);font-size:1rem;letter-spacing:1px;color:var(--orange)}
+.header-avatar{width:40px;height:40px;border-radius:50%;background:transparent;border:2px solid var(--orange);display:flex;align-items:center;justify-content:center;font-family:var(--font-heading);font-size:1rem;letter-spacing:1px;color:var(--orange);overflow:hidden;position:relative}
+.avatar-img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block}
+.avatar-img[hidden]{display:none}
+.avatar-fallback{position:relative;z-index:1;display:flex;align-items:center;justify-content:center;width:100%;height:100%}
 .header-user-info{line-height:1.2}
 .header-user-name{font-weight:600;font-size:0.95rem;color:var(--white)}
 .role-badge{display:inline-block;padding:3px 9px;border-radius:4px;font-size:0.7rem;font-weight:800;letter-spacing:1.2px;line-height:1.05;text-transform:uppercase}
@@ -240,6 +246,8 @@ input,select,textarea{font-family:var(--font-body);outline:none}
 .stat-card .stat-icon{position:absolute;top:16px;right:16px;font-size:1.5rem;color:var(--light-gray);opacity:0.4}
 .stat-card.accent .stat-value{color:var(--orange)}
 .stat-card.silver .stat-value{color:var(--silver)}
+.stat-card[data-action]{cursor:pointer}
+.stat-card[data-action]:focus-visible{border-color:var(--orange);box-shadow:0 0 0 3px var(--orange-glow)}
 
 /* ============================================ */
 /* QUICK ACTIONS                                */
@@ -452,9 +460,12 @@ input,select,textarea{font-family:var(--font-body);outline:none}
 .profile-layout{display:grid;grid-template-columns:300px 1fr;gap:24px}
 .profile-sidebar{background:var(--dark-gray);border:1px solid var(--mid-gray);border-radius:8px;padding:32px;text-align:center;position:relative;overflow:hidden}
 .profile-sidebar::before{content:'';position:absolute;top:0;left:0;right:0;height:80px;background:linear-gradient(135deg,var(--mid-gray),var(--light-gray))}
-.profile-avatar{width:90px;height:90px;border-radius:50%;background:var(--mid-gray);border:3px solid var(--orange);display:flex;align-items:center;justify-content:center;font-family:var(--font-heading);font-size:2rem;color:var(--orange);margin:30px auto 16px;position:relative;z-index:2}
+.profile-avatar{width:90px;height:90px;border-radius:50%;background:var(--mid-gray);border:3px solid var(--orange);display:flex;align-items:center;justify-content:center;font-family:var(--font-heading);font-size:2rem;color:var(--orange);margin:30px auto 16px;position:relative;z-index:2;overflow:hidden}
 .profile-name{font-family:var(--font-heading);font-size:1.5rem;letter-spacing:2px;color:var(--white);margin-bottom:4px}
 .profile-email{color:var(--muted);font-size:0.88rem;margin-bottom:12px}
+.profile-picture-actions{position:relative;z-index:2;margin:16px 0 14px;display:flex;flex-direction:column;align-items:center;gap:8px}
+.profile-picture-actions .btn{width:100%;max-width:190px}
+.profile-picture-help{color:var(--muted);font-size:0.78rem;line-height:1.3}
 .profile-main{background:var(--dark-gray);border:1px solid var(--mid-gray);border-radius:8px;padding:32px}
 .profile-main h2{font-family:var(--font-heading);font-size:1.6rem;letter-spacing:3px;color:var(--white);margin-bottom:20px;padding-bottom:12px;border-bottom:1px solid var(--mid-gray)}
 .profile-main h2 span{color:var(--orange)}
@@ -570,17 +581,31 @@ input,select,textarea{font-family:var(--font-body);outline:none}
     </div>
 </div>
 
-<!-- User Form Modal -->
+<!-- Approval Queue Modal -->
+<div id="approval-modal" class="modal-overlay" role="dialog" aria-modal="true">
+    <div class="modal-box" style="max-width:760px">
+        <div class="modal-header">
+            <h2>PENDING APPROVALS</h2>
+            <button class="modal-close" data-close-modal="approval" aria-label="Close"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <div class="modal-body" id="approval-modal-body"></div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary btn-sm" data-close-modal="approval">Close</button>
+        </div>
+    </div>
+</div>
+
+<!-- Faculty Form Modal -->
 <div id="user-modal" class="modal-overlay" role="dialog" aria-modal="true">
     <div class="modal-box" style="max-width:500px">
         <div class="modal-header">
-            <h2 id="user-modal-title">ADD USER</h2>
+            <h2 id="user-modal-title">ADD FACULTY</h2>
             <button class="modal-close" data-close-modal="user" aria-label="Close"><i class="fa-solid fa-xmark"></i></button>
         </div>
         <div class="modal-body" id="user-modal-body"></div>
         <div class="modal-footer">
             <button class="btn btn-secondary btn-sm" data-close-modal="user">Cancel</button>
-            <button id="user-modal-save" class="btn btn-primary btn-sm">Save User</button>
+            <button id="user-modal-save" class="btn btn-primary btn-sm">Save Faculty</button>
         </div>
     </div>
 </div>

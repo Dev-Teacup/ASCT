@@ -16,10 +16,14 @@ let state = {
     students: [],
     auditLogs: [],
     csrfToken: document.querySelector('meta[name="csrf-token"]')?.content || '',
+    profilePictureVersion: Date.now(),
     editingStudentId: null, // ID of student being edited (null = adding new)
     editingUserId: null,    // ID of user being edited
     approvingUserId: null   // Pending student user being approved
 };
+
+const PROFILE_PICTURE_MAX_BYTES = 2 * 1024 * 1024;
+const PROFILE_PICTURE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 
 function setCsrfToken(token) {
     if (!token) return;
@@ -68,6 +72,38 @@ async function apiRequest(endpoint, action, options = {}) {
     return payload.data ?? null;
 }
 
+async function apiFormRequest(endpoint, action, formData) {
+    const csrfToken = getCsrfToken();
+    if (!csrfToken) {
+        throw new Error('Security token is missing. Refresh the page and try again.');
+    }
+
+    if (!formData.has('csrf_token')) {
+        formData.append('csrf_token', csrfToken);
+    }
+
+    const response = await fetch(`api/${endpoint}.php?action=${encodeURIComponent(action)}`, {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: {
+            'Accept': 'application/json',
+            'X-CSRF-Token': csrfToken
+        },
+        body: formData
+    });
+    const payload = await response.json().catch(() => null);
+
+    if (payload?.csrf_token) {
+        setCsrfToken(payload.csrf_token);
+    }
+
+    if (!payload || !payload.success) {
+        throw new Error(payload?.message || 'Request failed. Please try again.');
+    }
+
+    return payload.data ?? null;
+}
+
 function normalizeStudent(student) {
     return {
         ...student,
@@ -82,7 +118,8 @@ function normalizeUser(user) {
         ...user,
         id: parseInt(user.id, 10),
         status: user.status || 'active',
-        requested_student_id: user.requested_student_id || ''
+        requested_student_id: user.requested_student_id || '',
+        profile_picture_version: user.profile_picture_version || null
     };
 }
 
@@ -208,6 +245,7 @@ async function login(email, password) {
 
         if (data?.user) {
             state.currentUser = normalizeUser(data.user);
+            state.profilePictureVersion = Date.now();
             await loadData();
             return { success: true };
         }
@@ -399,6 +437,7 @@ async function loginWithPasskey(email) {
         });
 
         state.currentUser = normalizeUser(data.user);
+        state.profilePictureVersion = Date.now();
         await loadData();
         return { success: true };
     } catch (error) {
@@ -490,6 +529,7 @@ async function verifyLoginOtp(code) {
         });
 
         state.currentUser = normalizeUser(data.user);
+        state.profilePictureVersion = Date.now();
         state.loginChallenge = null;
         await loadData();
         return { success: true };
@@ -534,6 +574,7 @@ async function logout() {
     state.passkeys = [];
     state.students = [];
     state.auditLogs = [];
+    state.profilePictureVersion = Date.now();
     showLoginPage();
 }
 
@@ -544,6 +585,7 @@ async function checkSession() {
         if (!data?.user) return false;
 
         state.currentUser = normalizeUser(data.user);
+        state.profilePictureVersion = Date.now();
         await loadData();
         return true;
     } catch (error) {
@@ -717,7 +759,7 @@ const NAV_ITEMS = {
     admin: [
         { id: 'dashboard', label: 'Dashboard', icon: 'fa-solid fa-chart-pie' },
         { id: 'students',  label: 'Students',  icon: 'fa-solid fa-users' },
-        { id: 'users',     label: 'Users',     icon: 'fa-solid fa-user-gear' },
+        { id: 'users',     label: 'Faculty',   icon: 'fa-solid fa-user-gear' },
         { id: 'approval',  label: 'Approval',  icon: 'fa-solid fa-user-check' },
         { id: 'audit',     label: 'Audit Log', icon: 'fa-solid fa-clock-rotate-left' },
         { id: 'profile',   label: 'Profile',   icon: 'fa-solid fa-id-card' },
@@ -764,7 +806,7 @@ function navigateTo(viewId) {
 
 // Update header page title
 function updateHeaderTitle() {
-    const titles = { dashboard: 'DASHBOARD', students: 'STUDENT RECORDS', users: 'USER MANAGEMENT', approval: 'APPROVAL', audit: 'AUDIT LOG', profile: 'MY PROFILE', security: 'SECURITY' };
+    const titles = { dashboard: 'DASHBOARD', students: 'STUDENT RECORDS', users: 'FACULTY MANAGEMENT', approval: 'APPROVAL', audit: 'AUDIT LOG', profile: 'MY PROFILE', security: 'SECURITY' };
     document.getElementById('header-page-title').textContent = titles[state.currentView] || 'DASHBOARD';
 }
 
@@ -812,6 +854,23 @@ function closeConfirm() {
     document.getElementById('confirm-modal').classList.remove('active');
     confirmCallback = null;
 }
+
+function openPendingApprovalsModal() {
+    if (!hasPermission('manage_users')) {
+        showToast('Admin access required.', 'error');
+        return;
+    }
+
+    const pendingStudents = state.users.filter(u => u.role === 'student' && u.status === 'pending');
+    document.getElementById('approval-modal-body').innerHTML = renderApprovalQueue(pendingStudents);
+    document.getElementById('approval-modal').classList.add('active');
+}
+
+function closeApprovalModal() {
+    document.getElementById('approval-modal').classList.remove('active');
+    document.getElementById('approval-modal-body').innerHTML = '';
+}
+
 document.getElementById('confirm-btn').addEventListener('click', () => {
     if (confirmCallback) confirmCallback();
     closeConfirm();
@@ -821,6 +880,7 @@ document.querySelectorAll('[data-close-modal]').forEach(button => {
         const target = button.dataset.closeModal;
         if (target === 'student') closeStudentModal();
         else if (target === 'user') closeUserModal();
+        else if (target === 'approval') closeApprovalModal();
         else closeConfirm();
     });
 });
@@ -1071,7 +1131,7 @@ document.getElementById('student-modal-save').addEventListener('click', async ()
     }
 });
 
-// User modal
+// Faculty account modal
 function openUserModal(userId) {
     state.editingUserId = userId;
     const isEdit = userId !== null;
@@ -1079,7 +1139,7 @@ function openUserModal(userId) {
 
     if (!hasPermission('manage_users')) { showToast('Admin access required.', 'error'); return; }
 
-    document.getElementById('user-modal-title').textContent = isEdit ? 'EDIT USER' : 'ADD USER';
+    document.getElementById('user-modal-title').textContent = isEdit ? 'EDIT FACULTY' : 'ADD FACULTY';
 
     let html = `
         <div class="form-group"><label>Name <span style="color:var(--orange)">*</span></label><input type="text" id="uf-name" value="${isEdit ? escapeHtml(user.name) : ''}" placeholder="Full name" required></div>
@@ -1095,7 +1155,7 @@ function openUserModal(userId) {
         </div>
     `;
     document.getElementById('user-modal-body').innerHTML = html;
-    document.getElementById('user-modal-save').textContent = isEdit ? 'Update User' : 'Create User';
+    document.getElementById('user-modal-save').textContent = isEdit ? 'Update Faculty' : 'Create Faculty';
     document.getElementById('user-modal').classList.add('active');
 }
 
@@ -1126,14 +1186,14 @@ document.getElementById('user-modal-save').addEventListener('click', async () =>
     try {
         const data = await apiRequest('users', isEdit ? 'update' : 'create', { method: 'POST', data: payload });
         upsertUser(data);
-        showToast(isEdit ? 'User account updated.' : 'New user account created.', 'success');
+        showToast(isEdit ? 'Faculty account updated.' : 'New faculty account created.', 'success');
         closeUserModal();
         renderCurrentView();
     } catch (error) {
         showToast(error.message, 'error');
     } finally {
         saveBtn.disabled = false;
-        saveBtn.textContent = isEdit ? 'Update User' : 'Create User';
+        saveBtn.textContent = isEdit ? 'Update Faculty' : 'Create Faculty';
     }
 });
 
@@ -1191,7 +1251,7 @@ function hardDeleteStudent(studentId) {
     );
 }
 
-// Delete user (admin only)
+// Delete faculty account (admin only)
 function deleteUser(userId) {
     if (!hasPermission('manage_users')) { showToast('Admin access required.', 'error'); return; }
     const user = state.users.find(u => u.id === userId);
@@ -1199,16 +1259,16 @@ function deleteUser(userId) {
     if (user.id === state.currentUser.id) { showToast('You cannot delete your own account.', 'error'); return; }
 
     showConfirm(
-        'DELETE USER',
-        `Permanently delete user "${user.name}"? This cannot be undone.`,
-        'Delete User',
+        'DELETE FACULTY',
+        `Permanently delete faculty account "${user.name}"? This cannot be undone.`,
+        'Delete Faculty',
         'btn-danger',
         async () => {
             try {
                 await apiRequest('users', 'delete', { method: 'POST', data: { id: userId } });
                 removeUser(userId);
                 await refreshAuditLogs();
-                showToast(`User "${user.name}" has been deleted.`, 'warning');
+                showToast(`Faculty account "${user.name}" has been deleted.`, 'warning');
                 renderCurrentView();
             } catch (error) {
                 showToast(error.message, 'error');
@@ -1300,7 +1360,7 @@ function renderAdminDashboard(total, active, inactive, userCount, pendingUserCou
             <div class="hero-banner fade-in">
                 <div class="hero-banner-content">
                     <h1>ADMIN <span>DASHBOARD</span></h1>
-                    <p>Manage ASCT student records, user accounts, and enrollment information from one dashboard.</p>
+                    <p>Manage ASCT student records, faculty accounts, and enrollment information from one dashboard.</p>
                     <div class="hero-accent">ADMINISTRATIVE OVERVIEW</div>
                 </div>
             </div>
@@ -1322,11 +1382,11 @@ function renderAdminDashboard(total, active, inactive, userCount, pendingUserCou
                 <i class="fa-regular fa-user stat-icon"></i>
             </div>
             <div class="stat-card silver fade-in-up stagger-4">
-                <div class="stat-label">Total Users</div>
+                <div class="stat-label">Total Faculty</div>
                 <div class="stat-value">${userCount}</div>
                 <i class="fa-solid fa-shield-halved stat-icon"></i>
             </div>
-            <div class="stat-card fade-in-up stagger-5">
+            <div class="stat-card fade-in-up stagger-5" data-action="open-pending-approvals" role="button" tabindex="0" aria-label="Open pending approvals">
                 <div class="stat-label">Pending Approvals</div>
                 <div class="stat-value" style="color:var(--warning)">${pendingUserCount}</div>
                 <i class="fa-regular fa-user stat-icon"></i>
@@ -1344,7 +1404,7 @@ function renderAdminDashboard(total, active, inactive, userCount, pendingUserCou
             </div>
             <div class="action-card fade-in-up stagger-3" data-action="nav-users">
                 <div class="action-icon"><i class="fa-solid fa-user-shield"></i></div>
-                <div><div class="action-text">Manage Users</div><div class="action-sub">Accounts and roles</div></div>
+                <div><div class="action-text">Manage Faculty</div><div class="action-sub">Accounts and roles</div></div>
             </div>
             <div class="action-card fade-in-up stagger-4" data-action="nav-approval">
                 <div class="action-icon"><i class="fa-solid fa-user-clock"></i></div>
@@ -1519,6 +1579,24 @@ function getInitials(name) {
         .toUpperCase();
 
     return initials || 'AS';
+}
+
+function profilePictureUrl() {
+    const version = state.currentUser?.profile_picture_version || state.profilePictureVersion || Date.now();
+    return `api/profile_picture.php?action=view&v=${encodeURIComponent(version)}`;
+}
+
+function renderAvatarContent(initials, altText) {
+    const safeInitials = escapeHtml(initials);
+    const safeAlt = escapeHtml(altText || 'Profile picture');
+    const imageHtml = state.currentUser?.profile_picture_version
+        ? `<img class="avatar-img" src="${profilePictureUrl()}" alt="${safeAlt}" hidden>`
+        : '';
+
+    return `
+        <span class="avatar-fallback">${safeInitials}</span>
+        ${imageHtml}
+    `;
 }
 
 // Programs/Courses section
@@ -1760,6 +1838,7 @@ function renderStudentsView() {
                 <option value="3">Year 3</option>
                 <option value="4">Year 4</option>
             </select>
+            <button class="btn btn-export btn-sm" data-action="export-students"><i class="fa-solid fa-file-excel"></i> Export Excel</button>
             ${isAdmin ? '<button class="btn btn-primary btn-sm" data-action="add-student"><i class="fa-solid fa-plus"></i> Add Student</button>' : ''}
         </div>
 
@@ -1836,8 +1915,108 @@ function filterStudentTable() {
     if (wrapper) wrapper.innerHTML = renderStudentTable(filtered);
 }
 
+function getStudentFilterValues() {
+    return {
+        search: (document.getElementById('student-search')?.value || '').trim(),
+        status: document.getElementById('filter-status')?.value || 'all',
+        course: document.getElementById('filter-course')?.value || 'all',
+        year: document.getElementById('filter-year')?.value || 'all'
+    };
+}
+
+function filenameFromContentDisposition(value, fallback) {
+    if (!value) return fallback;
+
+    const encodedMatch = value.match(/filename\*=UTF-8''([^;]+)/i);
+    if (encodedMatch) {
+        try {
+            return decodeURIComponent(encodedMatch[1].replace(/"/g, ''));
+        } catch (error) {
+            return fallback;
+        }
+    }
+
+    const plainMatch = value.match(/filename="?([^"]+)"?/i);
+    return plainMatch ? plainMatch[1] : fallback;
+}
+
+function formatStudentFilterSummary(filters) {
+    const search = filters?.search ? filters.search : 'All';
+    const status = filters?.status && filters.status !== 'all' ? filters.status : 'All';
+    const course = filters?.course && filters.course !== 'all' ? filters.course : 'All Courses';
+    const year = filters?.year && filters.year !== 'all' ? `Year ${filters.year}` : 'All Years';
+
+    return `Search: ${search} | Status: ${status} | Course: ${course} | Year: ${year}`;
+}
+
+async function exportStudentsToExcel(button) {
+    if (!hasPermission('view_all_students')) {
+        showToast('You do not have permission to export student records.', 'error');
+        return;
+    }
+
+    const csrfToken = getCsrfToken();
+    if (!csrfToken) {
+        showToast('Security token is missing. Refresh the page and try again.', 'error');
+        return;
+    }
+
+    const originalHtml = button.innerHTML;
+    button.disabled = true;
+    button.setAttribute('aria-busy', 'true');
+    button.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Exporting';
+
+    try {
+        const response = await fetch('api/students.php?action=export_excel', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: {
+                'Accept': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/json',
+                'Content-Type': 'application/json',
+                'X-CSRF-Token': csrfToken
+            },
+            body: JSON.stringify({
+                action: 'export_excel',
+                csrf_token: csrfToken,
+                filters: getStudentFilterValues()
+            })
+        });
+
+        const contentType = response.headers.get('Content-Type') || '';
+        if (!response.ok || contentType.includes('application/json')) {
+            const payload = await response.json().catch(() => null);
+            if (payload?.csrf_token) setCsrfToken(payload.csrf_token);
+            throw new Error(payload?.message || 'Excel export failed.');
+        }
+
+        const blob = await response.blob();
+        if (!blob.size) {
+            throw new Error('Excel export returned an empty file.');
+        }
+
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = filenameFromContentDisposition(
+            response.headers.get('Content-Disposition'),
+            'asct-student-records.xlsx'
+        );
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+        showToast('Excel export downloaded.', 'success');
+    } catch (error) {
+        showToast(error.message || 'Excel export failed.', 'error');
+    } finally {
+        button.disabled = false;
+        button.removeAttribute('aria-busy');
+        button.innerHTML = originalHtml;
+    }
+}
+
 /* ============================================ */
-/* 7c. USERS VIEW RENDERING                     */
+/* 7c. FACULTY VIEW RENDERING                   */
 /* ============================================ */
 
 function renderUsersView() {
@@ -1848,14 +2027,14 @@ function renderUsersView() {
     return `
         <div class="hero-banner fade-in">
             <div class="hero-banner-content">
-                <h1>USER <span>MANAGEMENT</span></h1>
-                <p>Control access. Assign roles. Maintain system integrity.</p>
+                <h1>FACULTY <span>MANAGEMENT</span></h1>
+                <p>Control access, assign roles, and maintain system integrity.</p>
             </div>
         </div>
 
         <div class="section-panel fade-in-up" style="margin-bottom:0">
             <div class="section-panel-header">
-                <div><h2>USER <span>DIRECTORY</span></h2><div class="section-sub">Active accounts, roles, and account state</div></div>
+                <div><h2>FACULTY <span>DIRECTORY</span></h2><div class="section-sub">Active accounts, roles, and account state</div></div>
             </div>
 
             <div class="table-controls">
@@ -1863,7 +2042,7 @@ function renderUsersView() {
                     <i class="fa-solid fa-magnifying-glass"></i>
                     <input type="text" id="user-search" placeholder="Search users by name, email, role, or status..." aria-label="Search users">
                 </div>
-                <button class="btn btn-primary btn-sm" data-action="add-user"><i class="fa-solid fa-plus"></i> Add User</button>
+                <button class="btn btn-primary btn-sm" data-action="add-user"><i class="fa-solid fa-plus"></i> Add Faculty</button>
             </div>
 
             <div class="table-wrapper" id="users-table-wrapper">
@@ -1938,7 +2117,7 @@ function renderApprovalQueue(users) {
 
 function renderUserTable(users) {
     if (users.length === 0) {
-        return `<div class="empty-state"><i class="fa-solid fa-users-slash"></i><h3>NO USERS FOUND</h3><p>No user accounts match your search.</p></div>`;
+        return `<div class="empty-state"><i class="fa-solid fa-users-slash"></i><h3>NO FACULTY FOUND</h3><p>No faculty accounts match your search.</p></div>`;
     }
 
     return `
@@ -1989,7 +2168,8 @@ function formatAuditAction(action) {
     const labels = {
         student_soft_delete: 'Student Soft Delete',
         student_hard_delete: 'Student Hard Delete',
-        user_delete: 'User Delete',
+        student_export: 'Student Export',
+        user_delete: 'Faculty Delete',
         student_signup_reject: 'Student Signup Rejected'
     };
 
@@ -2015,6 +2195,8 @@ function renderAuditDetails(log) {
     if (metadata.course) parts.push(`Course: ${escapeHtml(metadata.course)}`);
     if (metadata.previous_status) parts.push(`Previous status: ${escapeHtml(metadata.previous_status)}`);
     if (metadata.source) parts.push(`Source: ${escapeHtml(formatAuditSource(metadata.source))}`);
+    if (metadata.record_count !== undefined) parts.push(`Records exported: ${escapeHtml(metadata.record_count)}`);
+    if (metadata.filters) parts.push(`Filters: ${escapeHtml(formatStudentFilterSummary(metadata.filters))}`);
 
     return parts.length
         ? `<div class="audit-details">${parts.join('<br>')}</div>`
@@ -2120,9 +2302,10 @@ function renderProfileView() {
 
     const roleClass = safeClassToken(user.role, 'student');
     const roleText = escapeHtml(String(user.role ?? '').toUpperCase());
-    const initials = escapeHtml(String(user.name ?? '').split(' ').map(n => n[0]).join(''));
+    const initials = getInitials(user.name);
     const userName = escapeHtml(user.name);
     const userEmail = escapeHtml(user.email);
+    const avatarHtml = renderAvatarContent(initials, user.name);
 
     let detailsHtml = `
         <div class="profile-detail-grid">
@@ -2160,10 +2343,15 @@ function renderProfileView() {
         </div>
         <div class="profile-layout fade-in-up">
             <div class="profile-sidebar">
-                <div class="profile-avatar">${initials}</div>
+                <div class="profile-avatar">${avatarHtml}</div>
                 <div class="profile-name">${userName}</div>
                 <div class="profile-email">${userEmail}</div>
                 <span class="role-badge ${roleClass}" style="font-size:0.8rem">${roleText}</span>
+                <div class="profile-picture-actions">
+                    <input type="file" id="profile-picture-input" class="sr-only" accept="image/jpeg,image/png,image/webp">
+                    <label class="btn btn-secondary btn-sm" for="profile-picture-input"><i class="fa-solid fa-camera"></i> Upload Photo</label>
+                    <div class="profile-picture-help">JPG, PNG, or WEBP up to 2 MB</div>
+                </div>
             </div>
             <div class="profile-main">
                 <h2>ACCOUNT <span>INFORMATION</span></h2>
@@ -2171,6 +2359,52 @@ function renderProfileView() {
             </div>
         </div>
     `;
+}
+
+async function handleProfilePictureUpload(file, input) {
+    if (!file) return;
+
+    if (!PROFILE_PICTURE_TYPES.includes(file.type)) {
+        showToast('Use a JPG, PNG, or WEBP image.', 'error');
+        input.value = '';
+        return;
+    }
+
+    if (file.size > PROFILE_PICTURE_MAX_BYTES) {
+        showToast('Profile picture must be 2 MB or smaller.', 'error');
+        input.value = '';
+        return;
+    }
+
+    const button = document.querySelector('label[for="profile-picture-input"]');
+    const previousButtonHtml = button?.innerHTML;
+    const formData = new FormData();
+    formData.append('profile_picture', file);
+
+    if (button) {
+        button.style.pointerEvents = 'none';
+        button.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Uploading';
+    }
+
+    try {
+        const data = await apiFormRequest('profile_picture', 'upload', formData);
+        const version = data?.version || Date.now();
+        state.profilePictureVersion = version;
+        if (state.currentUser) {
+            state.currentUser.profile_picture_version = version;
+        }
+        updateHeaderUser();
+        renderCurrentView();
+        showToast('Profile picture updated.', 'success');
+    } catch (error) {
+        showToast(error.message, 'error');
+    } finally {
+        if (button) {
+            button.style.pointerEvents = '';
+            button.innerHTML = previousButtonHtml;
+        }
+        input.value = '';
+    }
 }
 
 function renderSecurityView() {
@@ -2218,6 +2452,18 @@ function renderSecurityView() {
 /* ============================================ */
 /* 8. EVENT HANDLERS                            */
 /* ============================================ */
+
+document.addEventListener('error', (e) => {
+    if (e.target?.classList?.contains('avatar-img')) {
+        e.target.hidden = true;
+    }
+}, true);
+
+document.addEventListener('load', (e) => {
+    if (e.target?.classList?.contains('avatar-img')) {
+        e.target.hidden = false;
+    }
+}, true);
 
 // Login form submission
 document.getElementById('login-form').addEventListener('submit', async (e) => {
@@ -2484,6 +2730,9 @@ document.getElementById('main-content').addEventListener('click', (e) => {
         case 'hard-delete':
             hardDeleteStudent(id);
             break;
+        case 'export-students':
+            exportStudentsToExcel(btn);
+            break;
         case 'add-user':
             openUserModal(null);
             break;
@@ -2498,6 +2747,9 @@ document.getElementById('main-content').addEventListener('click', (e) => {
             break;
         case 'reject-student-user':
             rejectStudentSignup(id);
+            break;
+        case 'open-pending-approvals':
+            openPendingApprovalsModal();
             break;
         case 'nav-students':
             navigateTo('students');
@@ -2529,6 +2781,29 @@ document.getElementById('main-content').addEventListener('click', (e) => {
     }
 });
 
+document.getElementById('main-content').addEventListener('keydown', (e) => {
+    const target = e.target.closest('[data-action="open-pending-approvals"]');
+    if (!target || !['Enter', ' '].includes(e.key)) return;
+
+    e.preventDefault();
+    openPendingApprovalsModal();
+});
+
+document.getElementById('approval-modal-body').addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-action]');
+    if (!btn) return;
+
+    const id = btn.dataset.id ? parseInt(btn.dataset.id, 10) : null;
+    if (btn.dataset.action === 'approve-student-user') {
+        closeApprovalModal();
+        openStudentApprovalModal(id);
+    }
+    if (btn.dataset.action === 'reject-student-user') {
+        closeApprovalModal();
+        rejectStudentSignup(id);
+    }
+});
+
 // Search and filter event delegation for students
 document.getElementById('main-content').addEventListener('input', (e) => {
     if (['student-search','filter-status','filter-course','filter-year'].includes(e.target.id)) {
@@ -2540,6 +2815,11 @@ document.getElementById('main-content').addEventListener('input', (e) => {
 });
 
 document.getElementById('main-content').addEventListener('change', (e) => {
+    if (e.target.id === 'profile-picture-input') {
+        handleProfilePictureUpload(e.target.files?.[0], e.target);
+        return;
+    }
+
     if (e.target.id === 'enrollment-trend-range') {
         state.enrollmentTrendRange = e.target.value;
         const panel = document.getElementById('enrollment-trend-panel');
@@ -2554,16 +2834,18 @@ document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
         closeStudentModal();
         closeUserModal();
+        closeApprovalModal();
         closeConfirm();
     }
 });
 
 // Click outside modal to close
-['student-modal','user-modal','confirm-modal'].forEach(id => {
+['student-modal','user-modal','approval-modal','confirm-modal'].forEach(id => {
     document.getElementById(id).addEventListener('click', (e) => {
         if (e.target === document.getElementById(id)) {
             if (id === 'student-modal') closeStudentModal();
             else if (id === 'user-modal') closeUserModal();
+            else if (id === 'approval-modal') closeApprovalModal();
             else closeConfirm();
         }
     });
@@ -2581,6 +2863,21 @@ function showLoginPage() {
     document.getElementById('login-password').value = '';
 }
 
+function updateHeaderUser() {
+    if (!state.currentUser) return;
+
+    const user = state.currentUser;
+    const initials = getInitials(user.name);
+    const headerAvatar = document.getElementById('header-avatar');
+
+    headerAvatar.innerHTML = renderAvatarContent(initials, user.name);
+    document.getElementById('header-user-name').textContent = user.name;
+
+    const roleBadge = document.getElementById('header-role-badge');
+    roleBadge.textContent = user.role.toUpperCase();
+    roleBadge.className = `role-badge ${safeClassToken(user.role, 'student')}`;
+}
+
 // Show the authenticated application shell
 function showApp() {
     if (!state.currentUser) {
@@ -2588,22 +2885,9 @@ function showApp() {
         return;
     }
 
-    const user = state.currentUser;
-    const initials = user.name
-        .split(' ')
-        .map(part => part[0])
-        .join('')
-        .slice(0, 2)
-        .toUpperCase();
-
     document.getElementById('login-page').style.display = 'none';
     document.getElementById('app-container').style.display = 'block';
-    document.getElementById('header-avatar').textContent = initials;
-    document.getElementById('header-user-name').textContent = user.name;
-
-    const roleBadge = document.getElementById('header-role-badge');
-    roleBadge.textContent = user.role.toUpperCase();
-    roleBadge.className = `role-badge ${safeClassToken(user.role, 'student')}`;
+    updateHeaderUser();
 
     renderSidebar();
     updateHeaderTitle();

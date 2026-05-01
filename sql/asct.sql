@@ -6,6 +6,7 @@ USE `asct`;
 
 SET FOREIGN_KEY_CHECKS = 0;
 DROP TABLE IF EXISTS `user_passkeys`;
+DROP TABLE IF EXISTS `login_rate_limits`;
 DROP TABLE IF EXISTS `login_email_challenges`;
 DROP TABLE IF EXISTS `student_signup_email_challenges`;
 DROP TABLE IF EXISTS `audit_logs`;
@@ -21,12 +22,30 @@ CREATE TABLE `users` (
   `role` ENUM('admin','teacher','student') NOT NULL DEFAULT 'student',
   `status` ENUM('pending','active') NOT NULL DEFAULT 'active',
   `requested_student_id` VARCHAR(50) NULL,
+  `failed_login_attempts` TINYINT UNSIGNED NOT NULL DEFAULT 0,
+  `locked_until` DATETIME NULL,
   `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   UNIQUE KEY `users_email_unique` (`email`),
   UNIQUE KEY `users_requested_student_id_unique` (`requested_student_id`),
-  KEY `users_status_index` (`status`)
+  KEY `users_status_index` (`status`),
+  KEY `users_locked_until_index` (`locked_until`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE `login_rate_limits` (
+  `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `scope` VARCHAR(80) NOT NULL,
+  `rate_limit_key` CHAR(64) NOT NULL,
+  `attempts` SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+  `window_started_at` DATETIME NOT NULL,
+  `blocked_until` DATETIME NULL,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `login_rate_limits_scope_key_unique` (`scope`, `rate_limit_key`),
+  KEY `login_rate_limits_blocked_until_index` (`blocked_until`),
+  KEY `login_rate_limits_updated_at_index` (`updated_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE `user_passkeys` (

@@ -54,6 +54,9 @@ session_start();
 
 require_once __DIR__ . '/../config/database.php';
 
+const PASSWORD_LOGIN_LOCK_THRESHOLD = 3;
+const PASSWORD_LOGIN_LOCK_SECONDS = 1800;
+
 function refresh_session_cookie_flags(): void
 {
     if (headers_sent() || session_status() !== PHP_SESSION_ACTIVE || session_id() === '') {
@@ -154,9 +157,24 @@ function log_server_exception(Throwable $e, string $context): void
     ));
 }
 
+function user_profile_picture_version(int $userId): ?string
+{
+    $dir = dirname(__DIR__) . DIRECTORY_SEPARATOR . 'storage' . DIRECTORY_SEPARATOR . 'profile_pictures';
+
+    foreach (['jpg', 'png', 'webp'] as $extension) {
+        $path = $dir . DIRECTORY_SEPARATOR . 'user_' . $userId . '.' . $extension;
+        if (is_file($path)) {
+            return (string)(filemtime($path) ?: time());
+        }
+    }
+
+    return null;
+}
+
 function sanitize_user(array $user): array
 {
-    unset($user['password_hash']);
+    unset($user['password_hash'], $user['failed_login_attempts'], $user['locked_until']);
+    $user['profile_picture_version'] = user_profile_picture_version((int)$user['id']);
     return $user;
 }
 
@@ -170,6 +188,59 @@ function require_active_account(array $user): void
     if (user_account_status($user) !== 'active') {
         error_response('Your account is waiting for admin approval.', 403);
     }
+}
+
+function account_lock_remaining_seconds(array $user): int
+{
+    $lockedUntil = trim((string)($user['locked_until'] ?? ''));
+
+    if ($lockedUntil === '') {
+        return 0;
+    }
+
+    $unlockAt = strtotime($lockedUntil);
+    if ($unlockAt === false) {
+        return 0;
+    }
+
+    return max(0, $unlockAt - time());
+}
+
+function account_lock_message(int $remainingSeconds): string
+{
+    if ($remainingSeconds <= 60) {
+        return 'Account locked due to too many failed password attempts. Try again in less than 1 minute.';
+    }
+
+    $minutes = (int)ceil($remainingSeconds / 60);
+    return 'Account locked due to too many failed password attempts. Try again in ' . $minutes . ' minutes.';
+}
+
+function reset_account_login_failures(PDO $pdo, int $userId): void
+{
+    $stmt = $pdo->prepare(
+        'UPDATE users
+         SET failed_login_attempts = 0, locked_until = NULL
+         WHERE id = ? AND (failed_login_attempts <> 0 OR locked_until IS NOT NULL)'
+    );
+    $stmt->execute([$userId]);
+}
+
+function require_unlocked_account(array $user, ?PDO $pdo = null): array
+{
+    $remainingSeconds = account_lock_remaining_seconds($user);
+
+    if ($remainingSeconds > 0) {
+        error_response(account_lock_message($remainingSeconds), 423);
+    }
+
+    if (trim((string)($user['locked_until'] ?? '')) !== '') {
+        reset_account_login_failures($pdo ?? db(), (int)$user['id']);
+        $user['failed_login_attempts'] = 0;
+        $user['locked_until'] = null;
+    }
+
+    return $user;
 }
 
 function current_user(): ?array

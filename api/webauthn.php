@@ -582,6 +582,7 @@ function webauthn_login_options(string $email): array
     }
 
     require_active_account($user);
+    $user = require_unlocked_account($user);
 
     $credentials = webauthn_fetch_user_passkey_credentials((int)$user['id']);
     if ($credentials === []) {
@@ -624,7 +625,7 @@ function webauthn_verify_login(array $data): array
     webauthn_validate_client_data($clientDataJson, 'webauthn.get', (string)$sessionChallenge['challenge'], $rp['origin']);
 
     $stmt = db()->prepare(
-        'SELECT p.*, u.name, u.email, u.password_hash, u.role, u.status, u.requested_student_id, u.created_at AS user_created_at, u.updated_at AS user_updated_at
+        'SELECT p.*, u.name, u.email, u.password_hash, u.role, u.status, u.requested_student_id, u.failed_login_attempts, u.locked_until, u.created_at AS user_created_at, u.updated_at AS user_updated_at
          FROM user_passkeys p
          INNER JOIN users u ON u.id = p.user_id
          WHERE p.credential_id = ? AND p.user_id = ?
@@ -638,6 +639,11 @@ function webauthn_verify_login(array $data): array
     }
 
     require_active_account($passkey);
+    require_unlocked_account([
+        'id' => $passkey['user_id'],
+        'failed_login_attempts' => $passkey['failed_login_attempts'] ?? 0,
+        'locked_until' => $passkey['locked_until'] ?? null,
+    ]);
 
     $authenticatorData = webauthn_parse_authenticator_data($authenticatorDataRaw, false);
     webauthn_validate_rp_id_hash($authenticatorData, $rp['id']);
@@ -657,6 +663,7 @@ function webauthn_verify_login(array $data): array
     $signCount = $newSignCount > $storedSignCount ? $newSignCount : $storedSignCount;
     $stmt = db()->prepare('UPDATE user_passkeys SET sign_count = ?, last_used_at = NOW() WHERE id = ?');
     $stmt->execute([$signCount, (int)$passkey['id']]);
+    reset_account_login_failures(db(), (int)$passkey['user_id']);
 
     $user = [
         'id' => $passkey['user_id'],
@@ -666,6 +673,8 @@ function webauthn_verify_login(array $data): array
         'role' => $passkey['role'],
         'status' => $passkey['status'],
         'requested_student_id' => $passkey['requested_student_id'],
+        'failed_login_attempts' => 0,
+        'locked_until' => null,
         'created_at' => $passkey['user_created_at'],
         'updated_at' => $passkey['user_updated_at'],
     ];

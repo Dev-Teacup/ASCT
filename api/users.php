@@ -182,7 +182,7 @@ try {
         $passwordSql = '';
 
         if ($payload['password'] !== '') {
-            $passwordSql = ', password_hash = ?';
+            $passwordSql = ', password_hash = ?, failed_login_attempts = 0, locked_until = NULL';
             $params[] = password_hash($payload['password'], PASSWORD_DEFAULT);
         }
 
