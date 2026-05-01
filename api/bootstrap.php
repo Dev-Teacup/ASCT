@@ -141,6 +141,19 @@ function error_response(string $message, int $status = 400): never
     json_response(['success' => false, 'message' => $message], $status);
 }
 
+function log_server_exception(Throwable $e, string $context): void
+{
+    error_log(sprintf(
+        '%s: %s [%s] %s in %s:%d',
+        $context,
+        $e::class,
+        (string)$e->getCode(),
+        $e->getMessage(),
+        $e->getFile(),
+        $e->getLine()
+    ));
+}
+
 function sanitize_user(array $user): array
 {
     unset($user['password_hash']);

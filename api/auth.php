@@ -714,7 +714,9 @@ try {
         error_response('An account with this email already exists.');
     }
 
+    log_server_exception($e, 'Authentication database request failed');
     error_response('Authentication request failed.', 500);
 } catch (Throwable $e) {
+    log_server_exception($e, 'Authentication request failed');
     error_response('Authentication request failed.', 500);
 }
