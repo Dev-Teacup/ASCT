@@ -16,9 +16,9 @@ WORKDIR /var/www/html
 COPY . /var/www/html/
 COPY docker/render-entrypoint.sh /usr/local/bin/render-entrypoint
 
-RUN mkdir -p /var/www/html/storage/sessions \
+RUN mkdir -p /var/www/html/storage/sessions /var/www/html/storage/profile_pictures \
     && chown -R www-data:www-data /var/www/html/storage \
-    && chmod 0775 /var/www/html/storage /var/www/html/storage/sessions \
+    && chmod 0775 /var/www/html/storage /var/www/html/storage/sessions /var/www/html/storage/profile_pictures \
     && chmod +x /usr/local/bin/render-entrypoint
 
 ENV PORT=10000

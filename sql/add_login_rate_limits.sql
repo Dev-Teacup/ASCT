@@ -1,9 +1,13 @@
 USE `asct`;
 
 ALTER TABLE `users`
-  ADD COLUMN `failed_login_attempts` TINYINT UNSIGNED NOT NULL DEFAULT 0 AFTER `requested_student_id`,
-  ADD COLUMN `locked_until` DATETIME NULL AFTER `failed_login_attempts`,
-  ADD KEY `users_locked_until_index` (`locked_until`);
+  ADD COLUMN `failed_login_attempts` TINYINT UNSIGNED NOT NULL DEFAULT 0 AFTER `requested_student_id`;
+
+ALTER TABLE `users`
+  ADD COLUMN `locked_until` DATETIME NULL AFTER `failed_login_attempts`;
+
+ALTER TABLE `users`
+  ADD INDEX `users_locked_until_index` (`locked_until`);
 
 CREATE TABLE IF NOT EXISTS `login_rate_limits` (
   `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,

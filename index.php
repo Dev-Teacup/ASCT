@@ -249,6 +249,21 @@ input,select,textarea{font-family:var(--font-body);outline:none}
 .stat-card[data-action]{cursor:pointer}
 .stat-card[data-action]:focus-visible{border-color:var(--orange);box-shadow:0 0 0 3px var(--orange-glow)}
 
+/* Stat detail modal list */
+.stat-detail-list{display:flex;flex-direction:column;gap:8px;max-height:54vh;overflow-y:auto;padding-right:4px}
+.stat-detail-item{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;background:var(--mid-gray);border:1px solid var(--light-gray);border-radius:6px;transition:all 0.2s;gap:16px}
+.stat-detail-item:hover{border-color:var(--orange);background:rgba(255,90,31,0.06)}
+.stat-detail-item-left{display:flex;align-items:center;gap:14px;min-width:0}
+.stat-detail-avatar{width:40px;height:40px;border-radius:50%;background:rgba(255,90,31,0.1);border:1px solid rgba(255,90,31,0.3);display:flex;align-items:center;justify-content:center;font-family:var(--font-heading);font-size:0.9rem;color:var(--orange);flex-shrink:0}
+.stat-detail-info{min-width:0}
+.stat-detail-name{font-weight:700;font-size:0.95rem;color:var(--white);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.stat-detail-sub{color:var(--muted);font-size:0.82rem;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.stat-detail-right{display:flex;align-items:center;gap:10px;flex-shrink:0}
+.stat-detail-count{text-align:center;padding:10px 18px;font-family:var(--font-heading);font-size:2.5rem;letter-spacing:2px;line-height:1}
+.stat-detail-count-label{text-align:center;color:var(--muted);font-size:0.78rem;font-weight:600;letter-spacing:1px;text-transform:uppercase;margin-bottom:16px}
+.stat-detail-action-btn{padding:6px 14px;border-radius:4px;font-size:0.78rem;font-weight:700;letter-spacing:0.8px;text-transform:uppercase;background:rgba(255,90,31,0.1);border:1px solid rgba(255,90,31,0.3);color:var(--orange);transition:all 0.2s;cursor:pointer}
+.stat-detail-action-btn:hover{background:var(--orange);color:var(--white)}
+
 /* ============================================ */
 /* QUICK ACTIONS                                */
 /* ============================================ */
@@ -591,6 +606,20 @@ input,select,textarea{font-family:var(--font-body);outline:none}
         <div class="modal-body" id="approval-modal-body"></div>
         <div class="modal-footer">
             <button class="btn btn-secondary btn-sm" data-close-modal="approval">Close</button>
+        </div>
+    </div>
+</div>
+
+<!-- Stat Detail Modal -->
+<div id="stat-detail-modal" class="modal-overlay" role="dialog" aria-modal="true">
+    <div class="modal-box" style="max-width:680px">
+        <div class="modal-header">
+            <h2 id="stat-detail-modal-title">DETAILS</h2>
+            <button class="modal-close" data-close-modal="stat-detail" aria-label="Close"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <div class="modal-body" id="stat-detail-modal-body"></div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary btn-sm" data-close-modal="stat-detail">Close</button>
         </div>
     </div>
 </div>

@@ -871,6 +871,112 @@ function closeApprovalModal() {
     document.getElementById('approval-modal-body').innerHTML = '';
 }
 
+function openStatDetailModal(statType) {
+    let title = '';
+    let items = [];
+    let countColor = 'var(--orange)';
+    let mode = 'student'; // 'student' or 'user'
+
+    switch (statType) {
+        case 'stat-total-students':
+            title = 'ALL STUDENTS';
+            items = state.students;
+            countColor = 'var(--orange)';
+            break;
+        case 'stat-active-students':
+            title = 'ACTIVE STUDENTS';
+            items = state.students.filter(s => s.status === 'active');
+            countColor = 'var(--success)';
+            break;
+        case 'stat-inactive-students':
+            title = 'INACTIVE STUDENTS';
+            items = state.students.filter(s => s.status === 'inactive');
+            countColor = 'var(--inactive-text)';
+            break;
+        case 'stat-total-faculty':
+            title = 'ALL FACULTY';
+            items = state.users;
+            countColor = 'var(--silver)';
+            mode = 'user';
+            break;
+        default:
+            return;
+    }
+
+    document.getElementById('stat-detail-modal-title').textContent = title;
+    document.getElementById('stat-detail-modal-body').innerHTML = renderStatDetailContent(items, mode, countColor);
+    document.getElementById('stat-detail-modal').classList.add('active');
+}
+
+function closeStatDetailModal() {
+    document.getElementById('stat-detail-modal').classList.remove('active');
+    document.getElementById('stat-detail-modal-body').innerHTML = '';
+}
+
+function renderStatDetailContent(items, mode, countColor) {
+    const count = items.length;
+
+    if (count === 0) {
+        return `
+            <div class="empty-state" style="padding:32px 20px">
+                <i class="fa-solid fa-${mode === 'user' ? 'user-gear' : 'users-slash'}"></i>
+                <h3>NO RECORDS</h3>
+                <p>No ${mode === 'user' ? 'faculty accounts' : 'student records'} found in this category.</p>
+            </div>
+        `;
+    }
+
+    let listHtml = '';
+    if (mode === 'student') {
+        listHtml = items.map(s => {
+            const initials = escapeHtml(`${String(s.first_name ?? '').charAt(0)}${String(s.last_name ?? '').charAt(0)}`).toUpperCase();
+            const status = s.status === 'inactive' ? 'inactive' : 'active';
+            const statusClass = status === 'active' ? 'active' : 'inactive';
+            return `
+                <div class="stat-detail-item">
+                    <div class="stat-detail-item-left">
+                        <div class="stat-detail-avatar">${initials}</div>
+                        <div class="stat-detail-info">
+                            <div class="stat-detail-name">${escapeHtml(s.first_name)} ${escapeHtml(s.last_name)}</div>
+                            <div class="stat-detail-sub">${escapeHtml(s.student_id)} &bull; ${escapeHtml(s.course)} &bull; Year ${escapeHtml(s.year_level)}</div>
+                        </div>
+                    </div>
+                    <div class="stat-detail-right">
+                        <span class="status-badge ${statusClass}">${escapeHtml(status)}</span>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    } else {
+        listHtml = items.map(u => {
+            const initials = escapeHtml(getInitials(u.name));
+            const roleClass = safeClassToken(u.role, 'student');
+            const statusClass = safeClassToken(u.status, 'active');
+            return `
+                <div class="stat-detail-item">
+                    <div class="stat-detail-item-left">
+                        <div class="stat-detail-avatar">${initials}</div>
+                        <div class="stat-detail-info">
+                            <div class="stat-detail-name">${escapeHtml(u.name)}</div>
+                            <div class="stat-detail-sub">${escapeHtml(u.email)}</div>
+                        </div>
+                    </div>
+                    <div class="stat-detail-right">
+                        <span class="role-badge ${roleClass}">${escapeHtml(String(u.role ?? '').toUpperCase())}</span>
+                        <span class="account-status-badge ${statusClass}">${escapeHtml(String(u.status ?? '').toUpperCase())}</span>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    }
+
+    return `
+        <div class="stat-detail-count" style="color:${countColor}">${count}</div>
+        <div class="stat-detail-count-label">${mode === 'user' ? 'Faculty Accounts' : 'Student Records'}</div>
+        <div class="stat-detail-list">${listHtml}</div>
+    `;
+}
+
 document.getElementById('confirm-btn').addEventListener('click', () => {
     if (confirmCallback) confirmCallback();
     closeConfirm();
@@ -881,6 +987,7 @@ document.querySelectorAll('[data-close-modal]').forEach(button => {
         if (target === 'student') closeStudentModal();
         else if (target === 'user') closeUserModal();
         else if (target === 'approval') closeApprovalModal();
+        else if (target === 'stat-detail') closeStatDetailModal();
         else closeConfirm();
     });
 });
@@ -1366,22 +1473,22 @@ function renderAdminDashboard(total, active, inactive, userCount, pendingUserCou
             </div>
 
         <div class="stats-grid">
-            <div class="stat-card accent fade-in-up stagger-1">
+            <div class="stat-card accent fade-in-up stagger-1" data-action="stat-total-students" role="button" tabindex="0" aria-label="View total students">
                 <div class="stat-label">Total Students</div>
                 <div class="stat-value" style="color:var(--orange)">${total}</div>
                 <i class="fa-solid fa-users stat-icon"></i>
             </div>
-            <div class="stat-card fade-in-up stagger-2">
+            <div class="stat-card fade-in-up stagger-2" data-action="stat-active-students" role="button" tabindex="0" aria-label="View active students">
                 <div class="stat-label">Active Students</div>
                 <div class="stat-value" style="color:var(--success)">${active}</div>
                 <i class="fa-regular fa-user stat-icon"></i>
             </div>
-            <div class="stat-card fade-in-up stagger-3">
+            <div class="stat-card fade-in-up stagger-3" data-action="stat-inactive-students" role="button" tabindex="0" aria-label="View inactive students">
                 <div class="stat-label">Inactive Students</div>
                 <div class="stat-value" style="color:var(--inactive-text)">${inactive}</div>
                 <i class="fa-regular fa-user stat-icon"></i>
             </div>
-            <div class="stat-card silver fade-in-up stagger-4">
+            <div class="stat-card silver fade-in-up stagger-4" data-action="stat-total-faculty" role="button" tabindex="0" aria-label="View total faculty">
                 <div class="stat-label">Total Faculty</div>
                 <div class="stat-value">${userCount}</div>
                 <i class="fa-solid fa-shield-halved stat-icon"></i>
@@ -1433,17 +1540,17 @@ function renderTeacherDashboard(total, active, inactive) {
             </div>
 
         <div class="stats-grid">
-            <div class="stat-card accent fade-in-up stagger-1">
+            <div class="stat-card accent fade-in-up stagger-1" data-action="stat-total-students" role="button" tabindex="0" aria-label="View total students">
                 <div class="stat-label">Total Students</div>
                 <div class="stat-value" style="color:var(--orange)">${total}</div>
                 <i class="fa-solid fa-users stat-icon"></i>
             </div>
-            <div class="stat-card fade-in-up stagger-2">
+            <div class="stat-card fade-in-up stagger-2" data-action="stat-active-students" role="button" tabindex="0" aria-label="View active students">
                 <div class="stat-label">Active Students</div>
                 <div class="stat-value" style="color:var(--success)">${active}</div>
                 <i class="fa-regular fa-user stat-icon"></i>
             </div>
-            <div class="stat-card fade-in-up stagger-3">
+            <div class="stat-card fade-in-up stagger-3" data-action="stat-inactive-students" role="button" tabindex="0" aria-label="View inactive students">
                 <div class="stat-label">Inactive Students</div>
                 <div class="stat-value" style="color:var(--inactive-text)">${inactive}</div>
                 <i class="fa-regular fa-user stat-icon"></i>
@@ -2751,6 +2858,12 @@ document.getElementById('main-content').addEventListener('click', (e) => {
         case 'open-pending-approvals':
             openPendingApprovalsModal();
             break;
+        case 'stat-total-students':
+        case 'stat-active-students':
+        case 'stat-inactive-students':
+        case 'stat-total-faculty':
+            openStatDetailModal(action);
+            break;
         case 'nav-students':
             navigateTo('students');
             break;
@@ -2782,11 +2895,16 @@ document.getElementById('main-content').addEventListener('click', (e) => {
 });
 
 document.getElementById('main-content').addEventListener('keydown', (e) => {
-    const target = e.target.closest('[data-action="open-pending-approvals"]');
+    const target = e.target.closest('[data-action="open-pending-approvals"], [data-action="stat-total-students"], [data-action="stat-active-students"], [data-action="stat-inactive-students"], [data-action="stat-total-faculty"]');
     if (!target || !['Enter', ' '].includes(e.key)) return;
 
     e.preventDefault();
-    openPendingApprovalsModal();
+    const action = target.dataset.action;
+    if (action === 'open-pending-approvals') {
+        openPendingApprovalsModal();
+    } else {
+        openStatDetailModal(action);
+    }
 });
 
 document.getElementById('approval-modal-body').addEventListener('click', (e) => {
@@ -2835,17 +2953,19 @@ document.addEventListener('keydown', (e) => {
         closeStudentModal();
         closeUserModal();
         closeApprovalModal();
+        closeStatDetailModal();
         closeConfirm();
     }
 });
 
 // Click outside modal to close
-['student-modal','user-modal','approval-modal','confirm-modal'].forEach(id => {
+['student-modal','user-modal','approval-modal','confirm-modal','stat-detail-modal'].forEach(id => {
     document.getElementById(id).addEventListener('click', (e) => {
         if (e.target === document.getElementById(id)) {
             if (id === 'student-modal') closeStudentModal();
             else if (id === 'user-modal') closeUserModal();
             else if (id === 'approval-modal') closeApprovalModal();
+            else if (id === 'stat-detail-modal') closeStatDetailModal();
             else closeConfirm();
         }
     });
