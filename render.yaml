@@ -1,0 +1,70 @@
+version: "1"
+
+services:
+  - type: pserv
+    name: asct-mysql
+    runtime: image
+    image:
+      url: docker.io/library/mysql:8.4
+    region: singapore
+    plan: starter
+    disk:
+      name: mysql-data
+      mountPath: /var/lib/mysql
+      sizeGB: 10
+    envVars:
+      - key: MYSQL_DATABASE
+        value: asct
+      - key: MYSQL_USER
+        value: asct
+      - key: MYSQL_PASSWORD
+        generateValue: true
+      - key: MYSQL_ROOT_PASSWORD
+        generateValue: true
+
+  - type: web
+    name: asct
+    runtime: docker
+    repo: https://github.com/Dev-Teacup/ASCT
+    branch: main
+    region: singapore
+    plan: starter
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /health.php
+    autoDeployTrigger: commit
+    disk:
+      name: asct-sessions
+      mountPath: /var/www/html/storage/sessions
+      sizeGB: 1
+    envVars:
+      - key: PORT
+        value: 10000
+      - key: DB_HOST
+        fromService:
+          type: pserv
+          name: asct-mysql
+          property: host
+      - key: DB_PORT
+        value: 3306
+      - key: DB_NAME
+        value: asct
+      - key: DB_USER
+        value: asct
+      - key: DB_PASS
+        fromService:
+          type: pserv
+          name: asct-mysql
+          envVarKey: MYSQL_PASSWORD
+      - key: DB_CHARSET
+        value: utf8mb4
+      - key: ASCT_APP_NAME
+        value: ASCT Portal
+      - key: ASCT_APP_BASE_URL
+        sync: false
+      - key: RESEND_API_KEY
+        sync: false
+      - key: RESEND_FROM_EMAIL
+        sync: false
+      - key: RESEND_FROM_NAME
+        value: ASCT Portal
