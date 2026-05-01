@@ -3,3 +3,4 @@
 ASCT.zip
 storage/sessions/sess_*
 storage/profile_pictures/*
+.playwright-mcp/*
