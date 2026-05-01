@@ -1,0 +1,4 @@
+.env
+!.env.example
+ASCT.zip
+storage/sessions/sess_*

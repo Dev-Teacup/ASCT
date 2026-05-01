@@ -1,0 +1,19 @@
+<Files ".env">
+    Require all denied
+</Files>
+
+<Files ".env.*">
+    Require all denied
+</Files>
+
+Options -Indexes
+ServerSignature Off
+
+<IfModule mod_headers.c>
+    Header always unset X-Powered-By
+    Header setifempty X-Content-Type-Options "nosniff"
+    Header setifempty X-Frame-Options "DENY"
+    Header setifempty Referrer-Policy "strict-origin-when-cross-origin"
+    Header setifempty Permissions-Policy "camera=(), microphone=(), geolocation=()"
+    Header setifempty Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com; font-src 'self' data: https://fonts.gstatic.com https://cdnjs.cloudflare.com; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+</IfModule>
