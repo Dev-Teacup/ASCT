@@ -1,4 +1,0 @@
-[     123ms] [VERBOSE] [DOM] Input elements should have autocomplete attributes (suggested: "current-password"): (More info: https://goo.gl/9p2vKq) %o @ http://localhost/ASCT/:0
-[     124ms] [VERBOSE] [DOM] Input elements should have autocomplete attributes (suggested: "new-password"): (More info: https://goo.gl/9p2vKq) %o @ http://localhost/ASCT/:0
-[     124ms] [VERBOSE] [DOM] Input elements should have autocomplete attributes (suggested: "new-password"): (More info: https://goo.gl/9p2vKq) %o @ http://localhost/ASCT/:0
-[   13357ms] [ERROR] Failed to load resource: the server responded with a status of 401 (Unauthorized) @ http://localhost/ASCT/api/profile_picture.php?action=view&v=1777633516304:0
