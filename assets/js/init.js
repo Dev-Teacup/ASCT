@@ -17,6 +17,7 @@ function updateHeaderUser() {
     const initials = getInitials(user.name);
     const headerAvatar = document.getElementById('header-avatar');
 
+    headerAvatar.classList.remove('avatar-loaded');
     headerAvatar.innerHTML = renderAvatarContent(initials, user.name);
     document.getElementById('header-user-name').textContent = user.name;
 

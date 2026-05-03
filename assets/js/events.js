@@ -5,12 +5,14 @@
 document.addEventListener('error', (e) => {
     if (e.target?.classList?.contains('avatar-img')) {
         e.target.hidden = true;
+        e.target.closest('.header-avatar,.profile-avatar')?.classList.remove('avatar-loaded');
     }
 }, true);
 
 document.addEventListener('load', (e) => {
     if (e.target?.classList?.contains('avatar-img')) {
         e.target.hidden = false;
+        e.target.closest('.header-avatar,.profile-avatar')?.classList.add('avatar-loaded');
     }
 }, true);
 
@@ -346,7 +348,7 @@ document.getElementById('main-content').addEventListener('input', (e) => {
 
 document.getElementById('main-content').addEventListener('change', (e) => {
     if (e.target.id === 'profile-picture-input') {
-        handleProfilePictureUpload(e.target.files?.[0], e.target);
+        handleProfilePictureFileSelected(e.target.files?.[0], e.target);
         return;
     }
 
@@ -366,20 +368,43 @@ document.addEventListener('keydown', (e) => {
         closeUserModal();
         closeApprovalModal();
         closeStatDetailModal();
+        closeProfilePictureCropper();
         closeConfirm();
     }
 });
 
 // Click outside modal to close
-['student-modal','user-modal','approval-modal','confirm-modal','stat-detail-modal'].forEach(id => {
+['student-modal','user-modal','approval-modal','confirm-modal','stat-detail-modal','profile-picture-modal'].forEach(id => {
     document.getElementById(id).addEventListener('click', (e) => {
         if (e.target === document.getElementById(id)) {
             if (id === 'student-modal') closeStudentModal();
             else if (id === 'user-modal') closeUserModal();
             else if (id === 'approval-modal') closeApprovalModal();
             else if (id === 'stat-detail-modal') closeStatDetailModal();
+            else if (id === 'profile-picture-modal') closeProfilePictureCropper();
             else closeConfirm();
         }
     });
 });
+
+document.getElementById('profile-picture-zoom').addEventListener('input', (e) => {
+    updateProfilePictureZoom(e.target.value);
+});
+
+document.getElementById('profile-picture-rotate-left').addEventListener('click', () => {
+    rotateProfilePictureCropper('left');
+});
+
+document.getElementById('profile-picture-rotate-right').addEventListener('click', () => {
+    rotateProfilePictureCropper('right');
+});
+
+document.getElementById('profile-picture-reset').addEventListener('click', resetProfilePictureCropperTransform);
+document.getElementById('profile-picture-save').addEventListener('click', saveProfilePictureCropper);
+
+const profilePictureCropCanvas = document.getElementById('profile-picture-crop-canvas');
+profilePictureCropCanvas.addEventListener('pointerdown', startProfilePictureCropDrag);
+profilePictureCropCanvas.addEventListener('pointermove', moveProfilePictureCropDrag);
+profilePictureCropCanvas.addEventListener('pointerup', endProfilePictureCropDrag);
+profilePictureCropCanvas.addEventListener('pointercancel', endProfilePictureCropDrag);
 

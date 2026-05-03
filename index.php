@@ -80,6 +80,40 @@ require_once __DIR__ . '/api/bootstrap.php';
     </div>
 </div>
 
+<!-- Profile Picture Cropper Modal -->
+<div id="profile-picture-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="profile-picture-modal-title">
+    <div class="modal-box profile-picture-modal-box">
+        <div class="modal-header">
+            <h2 id="profile-picture-modal-title">PROFILE PHOTO</h2>
+            <button class="modal-close" data-close-modal="profile-picture" aria-label="Close"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <div class="modal-body">
+            <div class="profile-picture-editor">
+                <div class="profile-picture-preview-wrap">
+                    <canvas id="profile-picture-crop-canvas" width="512" height="512" aria-label="Profile photo preview"></canvas>
+                    <div class="profile-picture-crop-ring" aria-hidden="true"></div>
+                </div>
+                <div class="profile-picture-editor-controls">
+                    <div class="form-group profile-picture-zoom-control">
+                        <label for="profile-picture-zoom">Zoom</label>
+                        <input type="range" id="profile-picture-zoom" min="1" max="3" step="0.01" value="1">
+                    </div>
+                    <div class="profile-picture-tool-row" aria-label="Profile photo tools">
+                        <button type="button" class="btn btn-secondary btn-sm btn-icon" id="profile-picture-rotate-left" title="Rotate left" aria-label="Rotate left"><i class="fa-solid fa-rotate-left"></i></button>
+                        <button type="button" class="btn btn-secondary btn-sm btn-icon" id="profile-picture-rotate-right" title="Rotate right" aria-label="Rotate right"><i class="fa-solid fa-rotate-right"></i></button>
+                        <button type="button" class="btn btn-secondary btn-sm" id="profile-picture-reset"><i class="fa-solid fa-arrow-rotate-left"></i> Reset</button>
+                    </div>
+                    <div class="profile-picture-editor-status" id="profile-picture-editor-status">Ready</div>
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary btn-sm" data-close-modal="profile-picture">Cancel</button>
+            <button class="btn btn-primary btn-sm" id="profile-picture-save"><i class="fa-solid fa-cloud-arrow-up"></i> Save Photo</button>
+        </div>
+    </div>
+</div>
+
 <!-- Faculty Form Modal -->
 <div id="user-modal" class="modal-overlay" role="dialog" aria-modal="true">
     <div class="modal-box" style="max-width:500px">

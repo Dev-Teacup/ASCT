@@ -176,6 +176,7 @@ document.querySelectorAll('[data-close-modal]').forEach(button => {
         else if (target === 'user') closeUserModal();
         else if (target === 'approval') closeApprovalModal();
         else if (target === 'stat-detail') closeStatDetailModal();
+        else if (target === 'profile-picture') closeProfilePictureCropper();
         else closeConfirm();
     });
 });

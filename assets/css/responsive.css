@@ -41,6 +41,8 @@
     .passkey-actions{flex-direction:column;align-items:stretch}
     .profile-detail-grid{grid-template-columns:1fr}
     .student-profile-detail{grid-template-columns:1fr}
+    .profile-picture-editor{grid-template-columns:1fr}
+    .profile-picture-preview-wrap{max-width:min(360px,100%)}
     .table-controls{flex-direction:column;gap:12px}
     .table-controls .search-wrap,.table-controls>.btn{width:100%}
     .modal-box{max-width:95vw}
@@ -50,4 +52,5 @@
     .quick-actions{grid-template-columns:1fr}
     .story-card{flex-direction:column}
     .story-card-img{width:100%;min-height:120px}
+    .profile-picture-tool-row .btn{flex:1}
 }
