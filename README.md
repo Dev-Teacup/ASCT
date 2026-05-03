@@ -13,8 +13,9 @@ ASCT is a PHP and vanilla JavaScript student information management system for A
 
 ## Repository Structure
 
-- `index.php` - main application shell, markup, and embedded styles.
-- `assets/js/app.js` - frontend state, API calls, views, and interactions.
+- `index.php` - main application shell and markup.
+- `assets/css/index.css` - application styles.
+- `assets/js/` - frontend state, API calls, views, navigation, events, and initialization split by responsibility.
 - `api/` - JSON endpoints, authentication, users, students, passkeys, audit logs, and uploads.
 - `config/` - environment, database, and email configuration.
 - `sql/` - schema and migration scripts.
@@ -94,13 +95,29 @@ Run PHP syntax checks on changed PHP files before committing:
 
 ```powershell
 php -l api/bootstrap.php
+php -l api/auth.php
+php -l api/auth_helpers.php
+php -l api/auth_email.php
 php -l tools/detect-god-files.php
+php -l tools/test-god-file-refactor.php
 ```
 
 If PHP is not on your Windows PATH, use the XAMPP executable:
 
 ```powershell
 & "C:\xampp\php\php.exe" -l tools/detect-god-files.php
+```
+
+Run the refactor wiring regression test:
+
+```powershell
+php tools/test-god-file-refactor.php
+```
+
+Or with XAMPP PHP:
+
+```powershell
+& "C:\xampp\php\php.exe" tools/test-god-file-refactor.php
 ```
 
 Run the god-file detector:
